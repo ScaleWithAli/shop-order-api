@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE = import.meta.env.VITE_ORDER_URL
+const BASE = window._env_?.VITE_ORDER_URL || import.meta.env.VITE_ORDER_URL
 
 const authHeader = (token) => ({
   headers: { Authorization: `Bearer ${token}` }
