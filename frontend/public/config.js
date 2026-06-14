@@ -1,0 +1,5 @@
+window._env_ = {
+  VITE_AUTH_URL: "__VITE_AUTH_URL__",
+  VITE_PRODUCT_URL: "__VITE_PRODUCT_URL__",
+  VITE_ORDER_URL: "__VITE_ORDER_URL__",
+}
