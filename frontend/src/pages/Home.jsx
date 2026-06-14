@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <div style={styles.page}>
       <div style={styles.hero}>
-        <p style={styles.tag}>New Collection 2026</p>
+        <p style={styles.tag}>New Collection 2027</p>
         <h1 style={styles.title}>Crafted for the<br />Discerning Few</h1>
         <p style={styles.sub}>Luxury redefined. Timeless pieces.</p>
         <Link to="/products" style={styles.btn}>Explore Collection</Link>
