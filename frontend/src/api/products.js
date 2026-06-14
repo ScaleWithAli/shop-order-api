@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE = import.meta.env.VITE_PRODUCT_URL
+const BASE = window._env_?.VITE_PRODUCT_URL || import.meta.env.VITE_PRODUCT_URL
 
 export const getProducts = (category) =>
   axios.get(`${BASE}/products`, { params: category ? { category } : {} })
