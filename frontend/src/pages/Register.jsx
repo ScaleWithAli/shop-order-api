@@ -10,6 +10,8 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    console.log("BASE URL:", window._env_?.VITE_AUTH_URL)
+    console.log("Form data:", form)
     try {
       await register(form)
       setSuccess('Account created! Redirecting...')
@@ -50,4 +52,4 @@ const styles = {
   btn: { background: 'linear-gradient(135deg, #c9a84c, #e8c96a)', color: '#0a0a0a', border: 'none', padding: '13px', borderRadius: 2, cursor: 'pointer', fontWeight: 600, fontSize: 13, letterSpacing: 1 },
   footer: { color: '#444', fontSize: 12, marginTop: 20, textAlign: 'center' },
   link: { color: '#c9a84c', textDecoration: 'none' }
-}
+            }
