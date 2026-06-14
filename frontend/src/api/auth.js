@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE = import.meta.env.VITE_AUTH_URL
+const BASE = window._env_?.VITE_AUTH_URL || import.meta.env.VITE_AUTH_URL
 
 export const register = (data) =>
   axios.post(`${BASE}/auth/register`, data)
