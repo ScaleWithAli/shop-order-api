@@ -8,7 +8,7 @@ class OrderStatus(str, enum.Enum):
     pending   = "pending"
     confirmed = "confirmed"
     shipped   = "shipped"
-    delivered = "delivered"
+    delivered = "deliver"
     cancelled = "cancelled"
 
 class Order(Base):

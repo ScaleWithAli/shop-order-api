@@ -10,7 +10,7 @@ async function handleEvent(event, data) {
     case "order_create":
       await mailer.sendOrderConfirmation(data);
       break;
-    case "order_cancelled":
+    case "order_cancell":
       await mailer.sendOrderCancellation(data);
       break;
     default:
