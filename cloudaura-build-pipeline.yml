@@ -26,12 +26,11 @@ variables:
 
 stages:
   - stage: BuildScanAndPush
-    displayName: ' Build, Scan & Push Pipeline'
+    displayName: 'Build, Scan & Push Pipeline'
     jobs:
       - job: BuildService
-        displayName: ' Matrix Build for Microservices'
+        displayName: 'Matrix Build for Microservices'
         
-        # Using a matrix strategy to spin up parallel jobs for each microservice cleanly
         strategy:
           matrix:
             AuthService:
@@ -51,13 +50,14 @@ stages:
               acrRepo: "frontend"
               
         steps:
-          # Pull the repository with enough git history to check recent diffs
           - checkout: self
             fetchDepth: 2
 
-          # Step 1: Optimization check so we don't build services that haven't been touched
+          # Step 1: Smart Change Detection
           - bash: |
+              echo "--------------------------------------------------------"
               echo "-> Checking git diff to see if code changed in: $(folder)"
+              echo "--------------------------------------------------------"
               
               if [ "$(folder)" == "frontend" ]; then
                 if git diff --name-only HEAD~1 HEAD | grep -q "frontend/"; then
@@ -76,12 +76,12 @@ stages:
                   echo "##vso[task.setvariable variable=isChanged]false"
                 fi
               fi
-            displayName: ' Step 1: Smart Change Detection'
+            displayName: 'Step 1: Smart Change Detection'
 
-          # Step 2: Authenticate with Azure and build the container image locally on the agent
+          # Step 2: ACR Login & Docker Build (Runs only if isChanged == true)
           - task: AzureCLI@2
-            if: eq(variables.isChanged, 'true')
-            displayName: ' Step 2: ACR Login & Docker Build'
+            condition: eq(variables['isChanged'], 'true')
+            displayName: 'Step 2: ACR Login & Docker Build'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               scriptType: 'bash'
@@ -94,7 +94,7 @@ stages:
                 cd $(folder)
                 docker build -t $(acrRegistry)/$(acrRepo):$(tag) .
 
-          # Step 3: Shift-left security scan using Trivy (fails the build if Critical or High bugs are found)
+          # Step 3: Trivy Security Gate (Runs only if isChanged == true)
           - script: |
               echo "--------------------------------------------------------"
               echo "-> Installing Trivy vulnerability scanner..."
@@ -103,13 +103,13 @@ stages:
               
               echo "-> Running security scan on $(acrRegistry)/$(acrRepo):$(tag)..."
               trivy image --exit-code 1 --severity CRITICAL,HIGH $(acrRegistry)/$(acrRepo):$(tag)
-            if: eq(variables.isChanged, 'true')
-            displayName: ' Step 3: Trivy Security Gate'
+            condition: eq(variables['isChanged'], 'true')
+            displayName: 'Step 3: Trivy Security Gate'
 
-          # Step 4: Push the secure image to ACR only if all tests and scans pass successfully
+          # Step 4: Push to ACR (Runs only if isChanged == true)
           - task: AzureCLI@2
-            if: eq(variables.isChanged, 'true')
-            displayName: ' Step 4: Push to ACR'
+            condition: eq(variables['isChanged'], 'true')
+            displayName: 'Step 4: Push to ACR'
             inputs:
               azureSubscription: '$(azureServiceConnection)'
               scriptType: 'bash'
