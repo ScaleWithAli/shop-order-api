@@ -1,0 +1,120 @@
+# ==============================================================================
+# CloudAura Multi-Service CI/CD Pipeline
+# Hand-crafted pipeline featuring parallel matrix builds, smart path filtering,
+# and Trivy security gating for container vulnerabilities.
+# ==============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - 'shop-order-api/auth-service/**'
+      - 'shop-order-api/product-service/**'
+      - 'shop-order-api/order-service/**'
+      - 'shop-order-api/notif-service/**'
+      - 'frontend/**'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureServiceConnection: 'cloudaura-app-sc'
+  acrRegistry: 'cloudaura.azurecr.io'
+  tag: 'v1.0.$(Build.BuildId)'
+
+stages:
+  - stage: BuildScanAndPush
+    displayName: ' Build, Scan & Push Pipeline'
+    jobs:
+      - job: BuildService
+        displayName: ' Matrix Build for Microservices'
+        
+        # Using a matrix strategy to spin up parallel jobs for each microservice cleanly
+        strategy:
+          matrix:
+            AuthService:
+              folder: "shop-order-api/auth-service"
+              acrRepo: "auth-service"
+            ProductService:
+              folder: "shop-order-api/product-service"
+              acrRepo: "product-service"
+            OrderService:
+              folder: "shop-order-api/order-service"
+              acrRepo: "order-service"
+            NotifService:
+              folder: "shop-order-api/notif-service"
+              acrRepo: "notif-service"
+            Frontend:
+              folder: "frontend"
+              acrRepo: "frontend"
+              
+        steps:
+          # Pull the repository with enough git history to check recent diffs
+          - checkout: self
+            fetchDepth: 2
+
+          # Step 1: Optimization check so we don't build services that haven't been touched
+          - bash: |
+              echo "-> Checking git diff to see if code changed in: $(folder)"
+              
+              if [ "$(folder)" == "frontend" ]; then
+                if git diff --name-only HEAD~1 HEAD | grep -q "frontend/"; then
+                  echo "-> Changes found in frontend. Proceeding with build."
+                  echo "##vso[task.setvariable variable=isChanged]true"
+                else
+                  echo "-> No changes in frontend. Skipping this job."
+                  echo "##vso[task.setvariable variable=isChanged]false"
+                fi
+              else
+                if git diff --name-only HEAD~1 HEAD | grep -q "$(folder)/"; then
+                  echo "-> Changes found in $(folder). Proceeding with build."
+                  echo "##vso[task.setvariable variable=isChanged]true"
+                else
+                  echo "-> No changes in $(folder). Skipping this job."
+                  echo "##vso[task.setvariable variable=isChanged]false"
+                fi
+              fi
+            displayName: ' Step 1: Smart Change Detection'
+
+          # Step 2: Authenticate with Azure and build the container image locally on the agent
+          - task: AzureCLI@2
+            if: eq(variables.isChanged, 'true')
+            displayName: ' Step 2: ACR Login & Docker Build'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "-> Logging into Azure Container Registry..."
+                az acr login --name cloudaura
+
+                echo "-> Building docker image for $(acrRepo)..."
+                cd $(folder)
+                docker build -t $(acrRegistry)/$(acrRepo):$(tag) .
+
+          # Step 3: Shift-left security scan using Trivy (fails the build if Critical or High bugs are found)
+          - script: |
+              echo "--------------------------------------------------------"
+              echo "-> Installing Trivy vulnerability scanner..."
+              echo "--------------------------------------------------------"
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+              
+              echo "-> Running security scan on $(acrRegistry)/$(acrRepo):$(tag)..."
+              trivy image --exit-code 1 --severity CRITICAL,HIGH $(acrRegistry)/$(acrRepo):$(tag)
+            if: eq(variables.isChanged, 'true')
+            displayName: ' Step 3: Trivy Security Gate'
+
+          # Step 4: Push the secure image to ACR only if all tests and scans pass successfully
+          - task: AzureCLI@2
+            if: eq(variables.isChanged, 'true')
+            displayName: ' Step 4: Push to ACR'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "-> Pushing secure image to ACR..."
+                docker push $(acrRegistry)/$(acrRepo):$(tag)
+                echo "-> Successfully pushed: $(acrRegistry)/$(acrRepo):$(tag)"
